@@ -20,7 +20,7 @@ export const App = () => (
 
       <div className="block">
         <nav className="panel">
-          <p className="panel-heading">Filters</p>
+          <p className="panel-heading">Filters Hello world</p>
 
           <p className="panel-tabs has-text-weight-bold">
             <a
