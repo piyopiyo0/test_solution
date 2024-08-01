@@ -1,4 +1,7 @@
 /* eslint-disable jsx-a11y/accessible-emoji */
+
+/* !!! / Hello there! Sorry, I failed the test, it took much longer than expected / !!! */
+
 import React, { useState } from 'react';
 import './App.scss';
 import usersFromServer from './api/users';
