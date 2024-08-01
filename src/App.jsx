@@ -1,109 +1,85 @@
 /* eslint-disable jsx-a11y/accessible-emoji */
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import './App.scss';
 import usersFromServer from './api/users';
 import categoriesFromServer from './api/categories';
 import productsFromServer from './api/products';
 
-const products = productsFromServer.map(product => {
-  const category = categoriesFromServer.find(
-    cat => cat.id === product.categoryId,
-  );
-  const owner = usersFromServer.find(user => user.id === product.ownerId);
-
-  return {
-    ...product,
-    category,
-    owner,
-  };
-});
-
 export const App = () => {
-  const [selectedOwner, setSelectedOwner] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
+  const [products] = useState(productsFromServer);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredProducts = useMemo(() => {
-    let filtered = products;
-
-    if (selectedOwner) {
-      filtered = filtered.filter(product => product.owner.id === selectedOwner);
-    }
-
-    if (selectedCategories.length > 0) {
-      filtered = filtered.filter(product =>
-        selectedCategories.includes(product.category.id),
-      );
-    }
-
-    if (searchTerm) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
-    }
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (sortConfig.direction === 'ascending') {
-          return aValue > bValue ? 1 : -1;
-        }
-
-        if (sortConfig.direction === 'descending') {
-          return aValue < bValue ? 1 : -1;
-        }
-
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [selectedOwner, selectedCategories, searchTerm, sortConfig]);
-
-  const handleOwnerFilter = owner => {
-    setSelectedOwner(owner);
+  const handleSearchChange = event => {
+    setSearchQuery(event.target.value);
   };
 
-  const handleCategoryFilter = category => {
-    setSelectedCategories(prevCategories =>
-      prevCategories.includes(category)
-        ? prevCategories.filter(cat => cat !== category)
-        : [...prevCategories, category],
+  const handleResetAll = () => {
+    setSelectedUserId(null);
+    setSearchQuery('');
+    setSelectedCategory([]);
+  };
+
+  const handleUserChange = userId => {
+    setSelectedUserId(userId);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+  };
+
+  const handleCategoryChange = categoryId => {
+    setSelectedCategory(prevCat =>
+      prevCat.includes(categoryId)
+        ? prevCat.filter(id => id !== categoryId)
+        : [...prevCat, categoryId],
     );
   };
 
-  const handleSearch = e => {
-    setSearchTerm(e.target.value);
-  };
+  const filteredProducts = products.filter(product => {
+    const category = categoriesFromServer.find(
+      cat => cat.id === product.categoryId,
+    );
+    const owner = usersFromServer.find(user => user.id === category.ownerId);
 
-  const clearSearch = () => {
-    setSearchTerm('');
-  };
+    const matchUser = !selectedUserId || (owner && owner.id === selectedUserId);
 
-  const resetFilters = () => {
-    setSelectedOwner('');
-    setSelectedCategories([]);
-    setSearchTerm('');
-    setSortConfig({ key: '', direction: '' });
-  };
+    const matchSearch = product.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
 
-  const handleSort = key => {
-    let direction = 'ascending';
+    const matchCategory =
+      selectedCategory.length === 0 ||
+      selectedCategory.includes(product.categoryId);
 
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    } else if (
-      sortConfig.key === key &&
-      sortConfig.direction === 'descending'
-    ) {
-      direction = '';
-    }
+    return matchUser && matchSearch && matchCategory;
+  });
 
-    setSortConfig({ key, direction });
-  };
+  const renderProducts = filteredProducts.map(product => {
+    const category = categoriesFromServer.find(
+      item => item.id === product.categoryId,
+    );
+    const owner = usersFromServer.find(user => user.id === category.ownerId);
+
+    return (
+      <tr key={product.id} data-cy="Product">
+        <td className="has-text-weight-bold" data-cy="ProductId">
+          {product.id}
+        </td>
+        <td data-cy="ProductName">{product.name}</td>
+        <td data-cy="ProductCategory">
+          {category.icon} - {category.title}
+        </td>
+        <td
+          data-cy="ProductUser"
+          className={owner.sex === 'm' ? 'has-text-link' : 'has-text-danger'}
+        >
+          {owner.name}
+        </td>
+      </tr>
+    );
+  });
 
   return (
     <div className="section">
@@ -118,17 +94,19 @@ export const App = () => {
               <a
                 data-cy="FilterAllUsers"
                 href="#/"
-                className={!selectedOwner ? 'is-active' : ''}
-                onClick={() => handleOwnerFilter('')}
+                className={!selectedUserId ? 'is-active' : ''}
+                onClick={() => handleUserChange(null)}
               >
                 All
               </a>
+
               {usersFromServer.map(user => (
                 <a
                   key={user.id}
-                  className={selectedOwner === user.id ? 'is-active' : ''}
+                  data-cy="FilterUser"
                   href="#/"
-                  onClick={() => handleOwnerFilter(user.id)}
+                  className={selectedUserId === user.id ? 'is-active' : ''}
+                  onClick={() => handleUserChange(user.id)}
                 >
                   {user.name}
                 </a>
@@ -136,56 +114,63 @@ export const App = () => {
             </p>
 
             <div className="panel-block">
-              <input
-                type="text"
-                className="input"
-                placeholder="Search by name"
-                value={searchTerm}
-                onChange={handleSearch}
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  className="button is-small is-danger"
-                  onClick={clearSearch}
+              <p className="control has-icons-left has-icons-right">
+                <input
+                  data-cy="SearchField"
+                  type="text"
+                  className="input"
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                />
+                <span className="icon is-left">
+                  <i className="fas fa-search" aria-hidden="true" />
+                </span>
+                {searchQuery && (
+                  <span className="icon is-right">
+                    <button
+                      data-cy="ClearButton"
+                      type="button"
+                      className="delete"
+                      onClick={handleClearSearch}
+                    />
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <div className="panel-block is-flex-wrap-wrap">
+              <a
+                href="#/"
+                data-cy="AllCategories"
+                className={`button is-success mr-6 ${selectedCategory.length === 0 ? 'is-outlined' : ''}`}
+                onClick={() => setSelectedCategory([])}
+              >
+                All
+              </a>
+
+              {categoriesFromServer.map(category => (
+                <a
+                  key={category.id}
+                  data-cy="Category"
+                  className={`button mr-2 my-1 ${selectedCategory.includes(category.id) ? 'is-info' : ''}`}
+                  href="#/"
+                  onClick={() => handleCategoryChange(category.id)}
                 >
-                  X
-                </button>
-              )}
+                  {category.title}
+                </a>
+              ))}
             </div>
 
             <div className="panel-block">
-              <div className="buttons">
-                {categoriesFromServer.map(category => (
-                  <button
-                    type="button"
-                    key={category.id}
-                    className={`button ${
-                      selectedCategories.includes(category.id) ? 'is-info' : ''
-                    }`}
-                    onClick={() => handleCategoryFilter(category.id)}
-                  >
-                    {category.icon} {category.name}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => setSelectedCategories([])}
-                >
-                  All
-                </button>
-              </div>
-            </div>
-
-            <div className="panel-block">
-              <button
-                type="button"
+              <a
+                data-cy="ResetAllButton"
+                href="#/"
                 className="button is-link is-outlined is-fullwidth"
-                onClick={resetFilters}
+                onClick={handleResetAll}
               >
                 Reset all filters
-              </button>
+              </a>
             </div>
           </nav>
         </div>
@@ -202,49 +187,49 @@ export const App = () => {
             >
               <thead>
                 <tr>
-                  <th onClick={() => handleSort('id')}>
-                    ID{' '}
-                    {sortConfig.key === 'id' &&
-                      (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  <th>
+                    <span className="is-flex is-flex-wrap-nowrap">
+                      ID
+                      <a href="#/">
+                        <span className="icon">
+                          <i data-cy="SortIcon" className="fas fa-sort" />
+                        </span>
+                      </a>
+                    </span>
                   </th>
-                  <th onClick={() => handleSort('name')}>
-                    Name{' '}
-                    {sortConfig.key === 'name' &&
-                      (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  <th>
+                    <span className="is-flex is-flex-wrap-nowrap">
+                      Product
+                      <a href="#/">
+                        <span className="icon">
+                          <i data-cy="SortIcon" className="fas fa-sort-down" />
+                        </span>
+                      </a>
+                    </span>
                   </th>
-                  <th onClick={() => handleSort('category.name')}>
-                    Category{' '}
-                    {sortConfig.key === 'category.name' &&
-                      (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  <th>
+                    <span className="is-flex is-flex-wrap-nowrap">
+                      Category
+                      <a href="#/">
+                        <span className="icon">
+                          <i data-cy="SortIcon" className="fas fa-sort-up" />
+                        </span>
+                      </a>
+                    </span>
                   </th>
-                  <th onClick={() => handleSort('owner.name')}>
-                    Owner{' '}
-                    {sortConfig.key === 'owner.name' &&
-                      (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  <th>
+                    <span className="is-flex is-flex-wrap-nowrap">
+                      User
+                      <a href="#/">
+                        <span className="icon">
+                          <i data-cy="SortIcon" className="fas fa-sort" />
+                        </span>
+                      </a>
+                    </span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredProducts.map(product => (
-                  <tr key={product.id}>
-                    <td>{product.id}</td>
-                    <td>{product.name}</td>
-                    <td>
-                      {product.category.icon}
-                      {product.category.name}
-                    </td>
-                    <td
-                      className={
-                        product.owner.gender === 'male'
-                          ? 'has-text-link'
-                          : 'has-text-danger'
-                      }
-                    >
-                      {product.owner.name}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <tbody>{renderProducts}</tbody>
             </table>
           )}
         </div>
@@ -252,5 +237,3 @@ export const App = () => {
     </div>
   );
 };
-
-export default App;
